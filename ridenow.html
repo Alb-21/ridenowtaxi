@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>RideNow — Smart Taxi Booking System</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+:root{--y:#FFC400;--k:#111;--w:#fff;--g:#f3f3f0;--line:#ddd;--r:14px}
+*{box-sizing:border-box}
+body{margin:0;font-family:Georgia,"Times New Roman",serif;color:var(--k);background:var(--w);line-height:1.5}
+h1,h2,h3,.logo,button,label,.badge,nav a{font-family:"Trebuchet MS",Verdana,sans-serif}
+a{color:inherit}:focus-visible{outline:3px solid var(--k);outline-offset:2px}
+.nav{display:flex;justify-content:space-between;align-items:center;padding:.8rem 1.2rem;background:var(--k);color:var(--w);flex-wrap:wrap;gap:.5rem}
+.logo{font-size:1.4rem;font-weight:700;text-decoration:none}.logo b{color:var(--y)}
+.nav nav a{margin-left:1rem;text-decoration:none}.nav nav a:hover{color:var(--y)}
+.view{display:none}.view.on{display:block}
+.wrap{max-width:1100px;margin:0 auto;padding:2rem 1.2rem}
+.hero{background:var(--y);padding:4rem 1.2rem}
+.hero h1{font-size:clamp(2rem,6vw,3.6rem);margin:0 0 1rem;max-width:14ch;line-height:1.05}
+.hero p{max-width:50ch;font-size:1.1rem}
+.btn,button{display:inline-block;padding:.65rem 1.1rem;border:2px solid var(--k);border-radius:10px;background:var(--k);color:var(--w);font-weight:700;cursor:pointer;text-decoration:none;font-size:.95rem}
+.btn.alt,button.alt{background:var(--w);color:var(--k)}
+button.warn{background:#b3261e;border-color:#b3261e}
+button:disabled{opacity:.4;cursor:not-allowed}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:1rem}
+.card,.panel{background:var(--g);border-radius:var(--r);padding:1rem;border:1px solid var(--line)}
+.panel{margin-bottom:1rem}.panel h2,.panel h3{margin:0 0 .6rem;font-size:1.05rem}
+footer{background:var(--k);color:#ccc;padding:1.5rem 1.2rem;text-align:center;font-size:.9rem}
+.dash{display:grid;grid-template-columns:380px 1fr;gap:1rem;padding:1rem;align-items:start}
+.map{height:calc(100vh - 110px);min-height:420px;border-radius:var(--r);border:2px solid var(--k);position:sticky;top:.5rem}
+label{display:block;font-weight:700;font-size:.9rem;margin:.6rem 0 .2rem}
+select{width:100%;padding:.5rem;border:1px solid #999;border-radius:8px;font-size:1rem}
+.row{display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.5rem}
+.badge{display:inline-block;padding:.15rem .6rem;border-radius:99px;font-size:.8rem;font-weight:700;background:#ddd}
+.PENDING{background:#ffe08a}.ACCEPTED,.ARRIVED{background:#bde0ff}.IN_PROGRESS{background:#c8f0c8}.COMPLETED{background:#9be29b}.CANCELLED{background:#f5b5b0}
+.demo{background:var(--y);border:2px solid var(--k)}.real{background:#2e7d32;color:#fff}
+.err{color:#b3261e;font-weight:700}.note{font-size:.85rem;color:#444}.empty{color:#666;font-style:italic}
+table{width:100%;border-collapse:collapse;font-size:.85rem}td,th{padding:.3rem;border-bottom:1px solid var(--line);text-align:left}
+.toast{position:fixed;bottom:1rem;left:50%;transform:translateX(-50%);background:var(--k);color:#fff;padding:.7rem 1rem;border-radius:10px;z-index:9999}
+.toast.bad{background:#b3261e}.taxi{font-size:26px;text-align:center;line-height:30px}
+@media(max-width:850px){.dash{grid-template-columns:1fr}.map{position:static;height:60vh;order:-1}}
+</style></head><body>
+<header class="nav"><a class="logo" href="#home">Ride<b>Now</b></a>
+<nav><a href="#customer">Customer</a><a href="#driver">Driver</a><a href="#tracking">Live tracking</a><a href="#" id="resetBtn">Reset demo</a></nav></header>
+
+<section class="view on" id="v-home">
+<div class="hero"><h1>Book a taxi in three taps.</h1><p>RideNow is a college-project prototype: pick a pickup and destination, see an estimated fare, and watch a demo driver move on the map.</p>
+<p><a class="btn alt" href="#customer">Book a taxi</a> <a class="btn" href="#driver">Open driver dashboard</a></p></div>
+<main class="wrap"><h2>Features</h2><div class="cards">
+<div class="card"><h3>Map booking</h3><p>Choose places on an OpenStreetMap map or use your device location.</p></div>
+<div class="card"><h3>Fare estimate</h3><p>Base fare plus per-kilometre rate. Demonstration values only.</p></div>
+<div class="card"><h3>Demo live GPS</h3><p>A simulated driver moves smoothly to pickup, then destination.</p></div>
+<div class="card"><h3>Two dashboards</h3><p>Customer and driver views stay in sync, even across tabs in one browser.</p></div></div>
+<h2>How it works</h2><ol><li>Customer picks locations and books.</li><li>Driver goes online and accepts.</li><li>Driver starts Demo GPS; the customer sees the taxi approach.</li><li>Driver marks arrival, starts, and completes the ride.</li></ol>
+<p class="note">Simulated GPS is always labelled DEMO GPS. Roles are chosen, not authenticated: a frontend-only prototype cannot provide real accounts.</p></main>
+<footer>RideNow — frontend-only college project. Map data &copy; OpenStreetMap contributors.</footer></section>
+
+<section class="view" id="v-customer"><div class="dash"><aside>
+<div class="panel"><h2>Demo customer</h2><p>Meera Nair <span class="note">(demo profile, not a secure login)</span></p></div>
+<div class="panel"><h2>Plan your ride</h2>
+<label for="pickupSel">Pickup</label><select id="pickupSel"></select>
+<div class="row"><button class="alt" id="pickMapBtn" type="button">Pick on map</button><button class="alt" id="useLocBtn" type="button">Use my location</button></div>
+<label for="destSel">Destination</label><select id="destSel"></select>
+<div class="row"><button class="alt" id="destMapBtn" type="button">Pick on map</button></div>
+<p id="quote" class="empty">Choose both locations to see an estimate.</p>
+<button id="bookBtn" type="button" disabled>Book taxi</button>
+<p class="note">Distance is straight-line (Haversine), not a road route. Fare uses demo rates, not real prices.</p></div>
+<div class="panel"><h2>Current booking</h2><div id="current" class="empty">No booking yet.</div></div>
+<div class="panel"><h2>Booking history</h2><div id="history" class="empty">No rides yet.</div></div>
+</aside><div id="map-customer" class="map" role="application" aria-label="Customer map"></div></div></section>
+
+<section class="view" id="v-driver"><div class="dash"><aside>
+<div class="panel"><h2>Demo driver</h2><p>Arun Kumar · KL-07 AB 1234 <span class="note">(demo profile)</span></p>
+<label><input type="checkbox" id="onlineToggle"> Online (accepting requests)</label></div>
+<div class="panel"><h2>Available requests</h2><div id="requests" class="empty">Nothing yet.</div></div>
+<div class="panel"><h2>Current ride</h2><div id="ride" class="empty">No ride assigned.</div></div>
+<div class="panel"><h2>GPS <span id="gpsBadge" class="badge">OFF</span></h2>
+<div class="row"><button id="startDemo" type="button">Start Demo GPS</button><button class="alt" id="stopDemo" type="button">Stop Demo GPS</button></div>
+<div class="row"><button class="alt" id="startReal" type="button">Start Real GPS</button><button class="alt" id="stopReal" type="button">Stop Real GPS</button></div>
+<p class="note">Real GPS asks for your device location only after you click, and it is never sent anywhere. Other devices cannot see it: that needs a backend.</p>
+<p id="gpsInfo" class="empty">No location yet.</p></div>
+</aside><div id="map-driver" class="map" role="application" aria-label="Driver map"></div></div></section>
+
+<section class="view" id="v-tracking"><div class="dash"><aside><div class="panel"><h2>Live tracking</h2><div id="trackInfo" class="empty">No active ride.</div>
+<p class="note">Updates come from the driver view through localStorage, so it works in this browser only. It is not cross-device tracking.</p></div></aside>
+<div id="map-tracking" class="map" role="application" aria-label="Tracking map"></div></div></section>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+/* ===== Config & shared helpers ===== */
+const $ = id => document.getElementById(id);
+const CONFIG = { baseFare: 50, perKm: 15,          // DEMO rates in rupees, not real prices
+  center: [9.9312, 76.2673], driverStart: [9.9816, 76.2999],
+  tickMs: 1000, stepKm: 0.08, key: 'ridenow_v1' };  // 80 m per second
+const PLACES = { 'Ernakulam Junction': [9.9697, 76.2907], 'Marine Drive': [9.9814, 76.2756], 'Lulu Mall': [10.0270, 76.3080],
+  'Fort Kochi': [9.9658, 76.2421], 'Infopark': [10.0087, 76.3568], 'Kochi Airport': [10.1518, 76.3930] };
+const ACTIVE = ['ACCEPTED', 'ARRIVED', 'IN_PROGRESS'];
+// Allowed transitions (frontend check only; a real system must enforce this on a server)
+const FLOW = { PENDING: ['ACCEPTED', 'CANCELLED'], ACCEPTED: ['ARRIVED', 'CANCELLED'], ARRIVED: ['IN_PROGRESS', 'CANCELLED'], IN_PROGRESS: ['COMPLETED'], COMPLETED: [], CANCELLED: [] };
+
+function loadState() {
+  try { const s = JSON.parse(localStorage.getItem(CONFIG.key)); if (s && Array.isArray(s.bookings) && s.driver && typeof s.driver === 'object') return s; } catch (e) {}
+  return { bookings: [], driver: { online: false, lat: null, lng: null, mode: 'none', updated: null, accuracy: null } };
+}
+function saveState(s) { try { localStorage.setItem(CONFIG.key, JSON.stringify(s)); } catch (e) { toast('Could not save data (storage blocked?).', true); } }
+function updateDriver(p) { const s = loadState(); Object.assign(s.driver, p); saveState(s); }
+function esc(t) { const d = document.createElement('div'); d.textContent = String(t); return d.innerHTML; }
+function fmtTime(ms) { return ms ? new Date(ms).toLocaleTimeString() : '—'; }
+function toast(msg, bad) { const t = document.createElement('div'); t.className = 'toast' + (bad ? ' bad' : ''); t.setAttribute('role', 'status'); t.textContent = msg; document.body.appendChild(t); setTimeout(() => t.remove(), 3500); }
+function validCoord(p) { return !!p && Number.isFinite(p.lat) && Number.isFinite(p.lng) && Math.abs(p.lat) <= 90 && Math.abs(p.lng) <= 180; }
+function haversineKm(a, b) {
+  if (!validCoord(a) || !validCoord(b)) throw new Error('Invalid coordinates');
+  const rad = x => x * Math.PI / 180, dLat = rad(b.lat - a.lat), dLng = rad(b.lng - a.lng);
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(dLng / 2) ** 2;
+  return 2 * 6371 * Math.asin(Math.sqrt(h));
+}
+function calcFare(km) { return Math.max(0, Math.round(CONFIG.baseFare + Math.max(0, km) * CONFIG.perKm)); }
+function setStatus(id, next) {
+  const s = loadState(), b = s.bookings.find(x => x.id === id);
+  if (!b || !FLOW[b.status].includes(next)) { toast('Action not allowed for this booking.', true); return false; }
+  b.status = next; saveState(s); return true;
+}
+function activeRide(s) { return s.bookings.find(b => ACTIVE.includes(b.status)); }
+function badge(st) { return '<span class="badge ' + st + '">' + st.replace('_', ' ') + '</span>'; }
+
+/* ===== Map helpers ===== */
+function makeMap(id) {
+  const el = $(id);
+  if (typeof L === 'undefined') { el.innerHTML = '<p class="err">Map failed to load. Check your internet connection and reload.</p>'; return null; }
+  const map = L.map(id).setView(CONFIG.center, 12);
+  const tiles = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19,
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' }).addTo(map);
+  let warned = false; tiles.on('tileerror', () => { if (!warned) { warned = true; toast('Some map tiles failed to load.', true); } });
+  return map;
+}
+function putMarker(map, m, key, pos, html, icon) { // update the marker if it exists: no duplicates
+  if (m[key]) { m[key].setLatLng(pos); m[key].setPopupContent(html); return; }
+  m[key] = L.marker(pos, icon ? { icon } : {}).addTo(map).bindPopup(html);
+}
+function dropLayer(map, m, key) { if (m[key]) { map.removeLayer(m[key]); delete m[key]; } }
+function taxiIcon() { return L.divIcon({ className: '', html: '<div class="taxi" aria-label="Taxi">🚖</div>', iconSize: [30, 30], iconAnchor: [15, 15] }); }
+function drawBooking(map, m, b, d) { // pickup, destination, dashed straight line, driver
+  if (!map) return;
+  if (!b) { ['pickup', 'dest', 'line', 'driver'].forEach(k => dropLayer(map, m, k)); m.id = null; return; }
+  const p = [b.pickup.lat, b.pickup.lng], q = [b.dest.lat, b.dest.lng];
+  putMarker(map, m, 'pickup', p, '<b>Pickup</b><br>' + esc(b.pickup.label));
+  putMarker(map, m, 'dest', q, '<b>Destination</b><br>' + esc(b.dest.label));
+  if (m.line) m.line.setLatLngs([p, q]);
+  else m.line = L.polyline([p, q], { color: '#111', dashArray: '6 8', weight: 3 }).addTo(map).bindTooltip('Straight-line path (not a road route)');
+  const live = d && d.lat != null && (d.mode === 'demo' || d.mode === 'real') && ACTIVE.includes(b.status);
+  if (live) putMarker(map, m, 'driver', [d.lat, d.lng], '<b>Driver</b><br>' + (d.mode === 'demo' ? 'DEMO GPS (simulated)' : 'REAL GPS (this device)'), taxiIcon());
+  else dropLayer(map, m, 'driver');
+  if (m.id !== b.id) { m.id = b.id; map.fitBounds(L.latLngBounds([p, q]).pad(0.3)); }
+}
+
+/* ===== Router: one page, four views ===== */
+const VIEWS = ['home', 'customer', 'driver', 'tracking'];
+const maps = {}, mks = { customer: {}, driver: {}, tracking: {} };
+let view = 'home', pickMode = null;
+const pick = { pickup: null, dest: null };
+
+function route() {
+  let h = location.hash.slice(1); if (!VIEWS.includes(h)) h = 'home';
+  view = h; VIEWS.forEach(v => $('v-' + v).classList.toggle('on', v === h));
+  if (h !== 'home' && !maps[h]) {
+    maps[h] = makeMap('map-' + h);
+    if (h === 'customer' && maps[h]) maps[h].on('click', e => { if (pickMode) { setPoint(pickMode, e.latlng.lat, e.latlng.lng, 'Map point'); pickMode = null; } });
+  }
+  window.scrollTo(0, 0);
+  setTimeout(() => { if (maps[view]) maps[view].invalidateSize(); if (mks[view]) mks[view].id = null; refresh(); }, 50);
+}
+function refresh() { if (view === 'customer') renderCustomer(); else if (view === 'driver') renderDriver(); else if (view === 'tracking') renderTracking(); }
+
+/* ===== Customer ===== */
+function fillSelect(sel, kind) {
+  sel.innerHTML = '<option value="">Choose a place…</option><option value="__map">Custom (map / my location)</option>' + Object.keys(PLACES).map(n => '<option>' + esc(n) + '</option>').join('');
+  sel.addEventListener('change', () => { if (PLACES[sel.value]) setPoint(kind, PLACES[sel.value][0], PLACES[sel.value][1], sel.value); });
+}
+function setPoint(kind, lat, lng, label) {
+  pick[kind] = { lat, lng, label };
+  if (!PLACES[label]) (kind === 'pickup' ? $('pickupSel') : $('destSel')).value = '__map';
+  mks.customer.id = null; refresh();
+}
+function quote() {
+  const q = $('quote'), btn = $('bookBtn'); btn.disabled = true;
+  if (!validCoord(pick.pickup) || !validCoord(pick.dest)) { q.className = 'empty'; q.textContent = 'Choose both locations to see an estimate.'; return null; }
+  const km = haversineKm(pick.pickup, pick.dest), fare = calcFare(km);
+  q.className = ''; q.innerHTML = '≈ <b>' + km.toFixed(1) + ' km</b> straight-line (approximate)<br>Estimated fare: <b>₹' + fare + '</b> (demo rates: ₹' + CONFIG.baseFare + ' + ₹' + CONFIG.perKm + '/km)';
+  const s = loadState(); btn.disabled = s.bookings.some(b => b.status === 'PENDING' || ACTIVE.includes(b.status));
+  return { km, fare };
+}
+function book() {
+  const e = quote(); if (!e) return;
+  const s = loadState();
+  if (s.bookings.some(b => b.status === 'PENDING' || ACTIVE.includes(b.status))) { toast('Finish or cancel your current booking first.', true); return; }
+  const id = 'RN-' + Date.now().toString(36).toUpperCase() + Math.floor(Math.random() * 90 + 10);
+  s.bookings.push({ id, status: 'PENDING', pickup: pick.pickup, dest: pick.dest, km: +e.km.toFixed(2), fare: e.fare, created: Date.now(), driver: { name: 'Arun Kumar', plate: 'KL-07 AB 1234' } });
+  saveState(s); toast('Booking ' + id + ' created.'); mks.customer.id = null; refresh();
+}
+function renderCustomer() {
+  const s = loadState(), map = maps.customer, mk = mks.customer;
+  const open = s.bookings.find(b => b.status === 'PENDING' || ACTIVE.includes(b.status));
+  const last = open || s.bookings[s.bookings.length - 1], cur = $('current');
+  if (!last) { cur.className = 'empty'; cur.textContent = 'No booking yet.'; }
+  else {
+    cur.className = '';
+    cur.innerHTML = '<p><b>' + esc(last.id) + '</b> ' + badge(last.status) + '</p><p>' + esc(last.pickup.label) + ' → ' + esc(last.dest.label) + '<br>≈ ' + last.km + ' km · est. ₹' + last.fare + '</p>' +
+      (last.status !== 'PENDING' && last.status !== 'CANCELLED' ? '<p>Driver: ' + esc(last.driver.name) + ' (' + esc(last.driver.plate) + ') <span class="note">demo driver</span></p>' : '') +
+      (s.driver.mode !== 'none' && ACTIVE.includes(last.status) ? '<p><span class="badge ' + (s.driver.mode === 'demo' ? 'demo' : 'real') + '">' + (s.driver.mode === 'demo' ? 'DEMO GPS' : 'REAL GPS') + '</span> ' + (+s.driver.lat).toFixed(5) + ', ' + (+s.driver.lng).toFixed(5) + '</p>' : '') +
+      (FLOW[last.status].includes('CANCELLED') ? '<button class="warn" id="cancelBtn" type="button">Cancel booking</button>' : '');
+    const cb = $('cancelBtn'); if (cb) cb.addEventListener('click', () => { if (setStatus(last.id, 'CANCELLED')) refresh(); });
+  }
+  const done = s.bookings.filter(b => b.status === 'COMPLETED' || b.status === 'CANCELLED').reverse(), h = $('history');
+  h.className = done.length ? '' : 'empty';
+  h.innerHTML = done.length ? '<table><tr><th>ID</th><th>Route</th><th>Fare</th><th>Status</th></tr>' + done.map(b => '<tr><td>' + esc(b.id) + '</td><td>' + esc(b.pickup.label) + ' → ' + esc(b.dest.label) + '</td><td>₹' + b.fare + '</td><td>' + badge(b.status) + '</td></tr>').join('') + '</table>' : 'No rides yet.';
+  if (map) {
+    if (open) drawBooking(map, mk, open, s.driver);
+    else if (validCoord(pick.pickup) && validCoord(pick.dest)) drawBooking(map, mk, { id: 'preview' + JSON.stringify([pick.pickup, pick.dest]), status: 'DRAFT', pickup: pick.pickup, dest: pick.dest }, null);
+    else { drawBooking(map, mk, null); if (pick.pickup) putMarker(map, mk, 'pickup', [pick.pickup.lat, pick.pickup.lng], 'Pickup'); if (pick.dest) putMarker(map, mk, 'dest', [pick.dest.lat, pick.dest.lng], 'Destination'); }
+  }
+  quote();
+}
+function useMyLocation() {
+  if (!navigator.geolocation) { toast('Geolocation is not supported in this browser.', true); return; }
+  toast('Asking your browser for your location (used only on this page)…');
+  navigator.geolocation.getCurrentPosition(
+    p => { setPoint('pickup', p.coords.latitude, p.coords.longitude, 'My location'); if (maps.customer) maps.customer.setView([p.coords.latitude, p.coords.longitude], 14); },
+    err => toast(err.code === 1 ? 'Location permission denied.' : err.code === 3 ? 'Location request timed out.' : 'Location unavailable.', true), { timeout: 10000 });
+}
+
+/* ===== Driver: demo GPS (one timer) and optional real GPS ===== */
+let timer = null, watchId = null;
+function startDemo() {
+  if (timer) return; // never two timers
+  const s = loadState(); if (!activeRide(s)) { toast('Accept a ride first.', true); return; }
+  stopReal();
+  const patch = { mode: 'demo', updated: Date.now() };
+  if (s.driver.lat == null) { patch.lat = CONFIG.driverStart[0]; patch.lng = CONFIG.driverStart[1]; }
+  updateDriver(patch); timer = setInterval(tick, CONFIG.tickMs); refresh();
+}
+function stopDemo() { if (timer) { clearInterval(timer); timer = null; } if (loadState().driver.mode === 'demo') updateDriver({ mode: 'none' }); refresh(); }
+function tick() {
+  const s = loadState(), r = activeRide(s); if (!r) { stopDemo(); return; }
+  const target = r.status === 'ACCEPTED' ? r.pickup : r.status === 'IN_PROGRESS' ? r.dest : null; // ARRIVED: wait
+  if (!target) return;
+  const cur = { lat: s.driver.lat, lng: s.driver.lng }, dist = haversineKm(cur, target);
+  if (dist <= CONFIG.stepKm) { s.driver.lat = target.lat; s.driver.lng = target.lng; }
+  else { const f = CONFIG.stepKm / dist; s.driver.lat += (target.lat - cur.lat) * f; s.driver.lng += (target.lng - cur.lng) * f; } // linear interpolation
+  s.driver.updated = Date.now(); saveState(s); refresh();
+}
+function startReal() {
+  if (!navigator.geolocation) { toast('Geolocation is not supported in this browser.', true); return; }
+  if (watchId !== null) return; stopDemo();
+  if (!confirm("RideNow will read this device's GPS location while tracking is on. It stays in this browser and is not sent anywhere. Continue?")) return;
+  watchId = navigator.geolocation.watchPosition(
+    p => { updateDriver({ mode: 'real', lat: p.coords.latitude, lng: p.coords.longitude, accuracy: p.coords.accuracy, updated: Date.now() }); refresh(); },
+    err => { toast(err.code === 1 ? 'Location permission denied.' : err.code === 3 ? 'Location request timed out.' : 'Location unavailable.', true); stopReal(); },
+    { enableHighAccuracy: true, timeout: 15000, maximumAge: 5000 });
+  refresh();
+}
+function stopReal() {
+  if (watchId !== null) { navigator.geolocation.clearWatch(watchId); watchId = null; }
+  if (loadState().driver.mode === 'real') updateDriver({ mode: 'none', accuracy: null });
+  refresh();
+}
+function renderDriver() {
+  const s = loadState(), d = s.driver, ride = activeRide(s), pending = s.bookings.filter(b => b.status === 'PENDING');
+  $('onlineToggle').checked = !!d.online;
+  const rq = $('requests'); rq.className = pending.length && d.online ? '' : 'empty';
+  rq.innerHTML = !d.online ? 'Go online to see requests.' : pending.length ? pending.map(b => '<div class="card"><b>' + esc(b.id) + '</b><br>' + esc(b.pickup.label) + ' → ' + esc(b.dest.label) + '<br>≈ ' + b.km + ' km · est. ₹' + b.fare +
+    '<div class="row"><button data-act="ACCEPTED" data-id="' + esc(b.id) + '"' + (ride ? ' disabled' : '') + '>Accept</button><button class="alt" data-act="REJECT" data-id="' + esc(b.id) + '">Reject</button></div></div>').join('') : 'No pending requests.';
+  const rd = $('ride'); rd.className = ride ? '' : 'empty';
+  rd.innerHTML = ride ? '<p><b>' + esc(ride.id) + '</b> ' + badge(ride.status) + '</p><p>' + esc(ride.pickup.label) + ' → ' + esc(ride.dest.label) + '</p><div class="row">' +
+    '<button data-act="ARRIVED" data-id="' + esc(ride.id) + '"' + (ride.status !== 'ACCEPTED' ? ' disabled' : '') + '>Mark arrived</button>' +
+    '<button data-act="IN_PROGRESS" data-id="' + esc(ride.id) + '"' + (ride.status !== 'ARRIVED' ? ' disabled' : '') + '>Start ride</button>' +
+    '<button data-act="COMPLETED" data-id="' + esc(ride.id) + '"' + (ride.status !== 'IN_PROGRESS' ? ' disabled' : '') + '>Complete ride</button></div>' : 'No ride assigned.';
+  const g = $('gpsBadge'); g.textContent = d.mode === 'demo' ? 'DEMO GPS (simulated)' : d.mode === 'real' ? 'REAL GPS' : 'OFF';
+  g.className = 'badge ' + (d.mode === 'demo' ? 'demo' : d.mode === 'real' ? 'real' : '');
+  const gi = $('gpsInfo'); gi.className = d.lat != null ? '' : 'empty';
+  gi.innerHTML = d.lat != null ? 'Lat ' + (+d.lat).toFixed(5) + ', Lng ' + (+d.lng).toFixed(5) + '<br>Updated ' + fmtTime(d.updated) + (d.mode === 'real' && d.accuracy ? '<br>Accuracy ±' + Math.round(d.accuracy) + ' m' : '') : 'No location yet.';
+  $('startDemo').disabled = !!timer; $('stopDemo').disabled = !timer; $('startReal').disabled = watchId !== null; $('stopReal').disabled = watchId === null;
+  drawBooking(maps.driver, mks.driver, ride || pending[0] || null, d);
+}
+function onDriverAction(e) {
+  const btn = e.target.closest('button[data-act]'); if (!btn) return;
+  const id = btn.dataset.id, act = btn.dataset.act, s = loadState();
+  if (act === 'ACCEPTED' && (!s.driver.online || activeRide(s))) { toast('Go online and finish your current ride first.', true); return; }
+  if (act === 'REJECT') { if (setStatus(id, 'CANCELLED')) toast('Request rejected.'); }
+  else if (setStatus(id, act) && act === 'COMPLETED') { stopDemo(); stopReal(); toast('Ride completed.'); }
+  refresh();
+}
+
+/* ===== Tracking view ===== */
+function renderTracking() {
+  const s = loadState(), b = activeRide(s), box = $('trackInfo'), d = s.driver;
+  drawBooking(maps.tracking, mks.tracking, b || null, d);
+  if (!b) { box.className = 'empty'; box.textContent = 'No active ride. Accept one in the Driver view.'; return; }
+  const label = d.mode === 'demo' ? '<span class="badge demo">DEMO GPS</span>' : d.mode === 'real' ? '<span class="badge real">REAL GPS</span>' : '<span class="badge">GPS off</span>';
+  box.className = ''; box.innerHTML = '<p><b>' + esc(b.id) + '</b> ' + badge(b.status) + '</p><p>' + label + '</p>' + (d.lat != null ? '<p>' + (+d.lat).toFixed(5) + ', ' + (+d.lng).toFixed(5) + '<br>Updated ' + fmtTime(d.updated) + '</p>' : '');
+}
+
+/* ===== Start-up ===== */
+document.addEventListener('DOMContentLoaded', () => {
+  fillSelect($('pickupSel'), 'pickup'); fillSelect($('destSel'), 'dest');
+  $('pickMapBtn').addEventListener('click', () => { pickMode = 'pickup'; toast('Click the map to set pickup.'); });
+  $('destMapBtn').addEventListener('click', () => { pickMode = 'dest'; toast('Click the map to set destination.'); });
+  $('useLocBtn').addEventListener('click', useMyLocation); $('bookBtn').addEventListener('click', book);
+  $('onlineToggle').addEventListener('change', e => { updateDriver({ online: e.target.checked }); if (!e.target.checked) { stopDemo(); stopReal(); } refresh(); });
+  $('requests').addEventListener('click', onDriverAction); $('ride').addEventListener('click', onDriverAction);
+  $('startDemo').addEventListener('click', startDemo); $('stopDemo').addEventListener('click', stopDemo);
+  $('startReal').addEventListener('click', startReal); $('stopReal').addEventListener('click', stopReal);
+  $('resetBtn').addEventListener('click', e => { e.preventDefault(); if (confirm('Delete all demo bookings and driver data?')) { try { localStorage.removeItem(CONFIG.key); } catch (x) {} location.hash = '#home'; location.reload(); } });
+  window.addEventListener('storage', ev => { if (ev.key === CONFIG.key) refresh(); }); // other tabs
+  window.addEventListener('hashchange', route);
+  window.addEventListener('beforeunload', () => { if (timer) clearInterval(timer); if (watchId !== null) navigator.geolocation.clearWatch(watchId); });
+  if (loadState().driver.mode !== 'none') updateDriver({ mode: 'none' }); // a reload kills timers, so clear stale mode
+  route();
+});
+</script></body></html>
